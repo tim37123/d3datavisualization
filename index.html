@@ -1,13 +1,185 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Title of the document</title>
+<title>Dimple Titanic Visuals</title>
+<script src="d3.v3.min.js"></script>
+<script src="dimple.v2.1.6.min.js"></script>
+
+<style>
+	table {
+	    font-family: arial, sans-serif;
+	    border-collapse: collapse;
+	}
+
+	td, th {
+	    border: 1px solid #dddddd;
+	    text-align: left;
+	}
+
+	#row4{
+		font-weight: bold;
+	}
+</style>
 </head>
 
 <body>
-The content of the document......
-	<script src="d3.v3.min.js"></script>
-	<script src="dimple.v2.1.6.min.js"></script>
+	<h2>Titanic - Mortality Rates By Fare Range</h2>
+	<!-- The completed dimple chart will live in here -->
+	<div id="chartContainer">
+
+  	</div>
+  	
+  	<hr/>
+  	
+  	<!-- In addition to the chart a table to highlight the survival rate by ranges -->
+  	<div id="tableContainer">
+  		<h2>Mortality Rates by Fare Tier</h2>
+	  	<table>
+		  <tr>
+		    <th>Fare Tier</th>
+		    <th>Survival Rate</th>
+		  </tr>
+		  <tr>
+		    <td>$0-$10</td>
+		    <td id="row1"></td>
+		  </tr>
+		  <tr>
+		    <td>$11-$30</td>
+		    <td id="row2"></td>
+		  </tr>
+		  <tr>
+		    <td>$31-$100</td>
+		    <td id="row3"></td>
+		  </tr>
+		  <tr>
+		    <td>$100+</td>
+		    <td id="row4"></td>
+		  </tr>
+		</table>
+
+	</div>
+
+	<script type="text/javascript">
+		    // Attach to the created element
+		    var svg1 = dimple.newSvg("#chartContainer", 800, 600);
+
+		    // These rows are used for calculation in the table
+	    	var row1 = {'survived': 0, 'died': 0};
+	    	var row2 = {'survived': 0, 'died': 0};
+	    	var row3 = {'survived': 0, 'died': 0};
+	    	var row4 = {'survived': 0, 'died': 0};
+
+		    //Counts all survival rates by fare cost
+		    function add_fare_tier(all_data){
+		    	for (var i in all_data){
+		    		//Create generic counter for bar chart
+		    		all_data[i]["Passengers"] = 1;
+
+		    		// Set fare group based on ticket cost
+		    		if(all_data[i]["Fare"] < 11){
+		    			all_data[i]["Fare Range"] = "$0-$10";
+		    			//Assign survived/died category for stacked bar chart separation
+		    			if(all_data[i]["Survived"] == 1){
+		    				all_data[i]["Survived"] = "Survived";
+		    				// add to relevant counts for table calculation later
+		    				row1['survived'] +=1; 
+		    			}else{
+		    				all_data[i]["Survived"] = "Died";
+		    				// add to relevant counts for table calculation later
+		    				row1['died'] +=1;
+		    			}
+		    		}else if(all_data[i]["Fare"] >= 11 && all_data[i]["Fare"] < 31){
+		    			all_data[i]["Fare Range"] = "$11-$30";
+		    			if(all_data[i]["Survived"] == 1){
+		    				all_data[i]["Survived"] = "Survived";
+		    				row2['survived'] +=1;
+		    			}else{
+		    				all_data[i]["Survived"] = "Died";
+		    				row2['died'] +=1;
+		    			}
+		    		}else if(all_data[i]["Fare"] >= 31 && all_data[i]["Fare"] < 101){
+		    			all_data[i]["Fare Range"] = "$31-$100";
+		    			if(all_data[i]["Survived"] == 1){
+		    				all_data[i]["Survived"] = "Survived";
+		    				row3['survived'] +=1;
+		    			}else{
+		    				all_data[i]["Survived"] = "Died";
+		    				row3['died'] +=1;
+		    			}
+		    		}else{
+		    			all_data[i]["Fare Range"] = "$100+";
+		    			if(all_data[i]["Survived"] == 1){
+		    				all_data[i]["Survived"] = "Survived";
+		    				row4['survived'] +=1;
+		    			}else{
+		    				all_data[i]["Survived"] = "Died";
+		    				row4['died'] +=1;
+		    			}
+		    		}
+		    	}
+		    	//Return modified data set for charting
+		    	return all_data;
+		    }
+
+		    d3.csv("titanic_data.csv", function(data){
+		    	//Add a custom column to the existing data to sort fare categorically in the stacked bar
+		    	data = add_fare_tier(data);
+
+		    	// Attach new chart to svg
+		    	var chart1 = new dimple.chart(svg1, data);
+
+		    	// The default colors were setting deaths to green and survivors to red which I found to be a little misleading so I reset defaults
+		    	chart1.defaultColors = [
+				    new dimple.color("#ff6961"),
+				    new dimple.color("#77dd77"),
+				]; 
+
+				// Created references to these values in order to add counts to bars which is not supported natively
+		    	var x = chart1.addCategoryAxis("x", "Fare Range");
+		    	var y = chart1.addMeasureAxis("y", "Passengers");
+		    	var s = chart1.addSeries("Survived", dimple.plot.bar);
+
+		    	// Add raw counts to relevant stacked bars
+		    	s.afterDraw = function (shape, data) {
+			        // Get the shape as a d3 selection
+			        var s = d3.select(shape),
+			          rect = {
+			            x: parseFloat(s.attr("x")),
+			            y: parseFloat(s.attr("y")),
+			            width: parseFloat(s.attr("width")),
+			            height: parseFloat(s.attr("height"))
+			          };
+
+			        // Only label bars where the text can fit
+			        if (rect.height >= 8) {
+			          // Add a text label for the value
+			          svg1.append("text")
+			            // Position in the centre of the shape (vertical position is
+			            // manually set due to cross-browser problems with baseline)
+			            .attr("x", rect.x + rect.width / 2)
+			            .attr("y", rect.y + rect.height / 2 + 3.5)
+			            // Centre align
+			            .style("text-anchor", "middle")
+			            .style("font-size", "10px")
+			            .style("font-family", "sans-serif")
+			            // Make it a little transparent to tone down the black
+			            .style("opacity", 0.6)
+			            // Format the number
+			            .text(data.yValue);
+			        }
+			      };
+
+		    	chart1.addLegend(20, 10, 700, 10, "right");
+		    	chart1.draw();
+
+		    	// Input calulated percentage fields into the table
+		    	document.getElementById('row1').innerHTML = ((row1['survived'] / (row1['survived'] + row1['died'])) * 100).toFixed(1) + "%";
+		    	document.getElementById('row2').innerHTML = ((row2['survived'] / (row2['survived'] + row2['died'])) * 100).toFixed(1) + "%";
+		    	document.getElementById('row3').innerHTML = ((row3['survived'] / (row3['survived'] + row3['died'])) * 100).toFixed(1) + "%";
+		    	document.getElementById('row4').innerHTML = ((row4['survived'] / (row4['survived'] + row4['died'])) * 100).toFixed(1) + "%";
+		    });
+	  	</script>
+
 </body>
 
 </html>
